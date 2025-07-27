@@ -137,6 +137,9 @@ class DualAIChat {
         this.socket.on('remove-message', (data) => {
             this.removeMessage(data);
         });
+        this.socket.on('state-rolled-back', (data) => {
+            this.onStateRolledBack(data);
+        });
     }
 
     startDebate() {
@@ -377,10 +380,36 @@ class DualAIChat {
         }
         this.updateButtonStates();
     }
-
-    updateButtonStates() {
-        const isBusy = this.isDebating || this.isResuming;
-        this.sendBtn.disabled = isBusy || this.isPaused;
+ 
+    onStateRolledBack(data) {
+        console.log('接收到状态回滚事件', data);
+        this.addSystemMessage('🔄 检测到状态回滚，正在恢复UI...');
+ 
+        // 1. 清空消息区域
+        this.chatMessages.innerHTML = '';
+ 
+        // 2. 重新渲染历史记录
+        if (data.debateHistory && Array.isArray(data.debateHistory)) {
+            data.debateHistory.forEach(messageData => {
+                this.addMessage({ ...messageData, streaming: false }); // 确保旧消息不是流式
+            });
+        }
+ 
+        // 3. 恢复方案区域
+        if (data.solution) {
+            this.updateSolution(data.solution);
+        }
+ 
+        // 4. 清理可能存在的流式消息
+        const streamingIndicators = this.chatMessages.querySelectorAll('.streaming-indicator');
+        streamingIndicators.forEach(el => el.remove());
+ 
+        this.addSystemMessage('✅ UI已恢复至上一稳定状态');
+    }
+ 
+     updateButtonStates() {
+         const isBusy = this.isDebating || this.isResuming;
+         this.sendBtn.disabled = isBusy || this.isPaused;
         this.stopBtn.disabled = !this.isDebating;
         this.forceEndBtn.disabled = !this.isDebating;
         this.resumeBtn.disabled = !this.isPaused || isBusy;
