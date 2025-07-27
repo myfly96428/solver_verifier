@@ -249,7 +249,7 @@ class DebateManager {
             contextDescription = `以上是Cognito在上一轮辩论后整合生成的新版方案 v${this.solutionVersion}和历史辩论记录。你是Muse，请从对立角度用严格的逻辑审视这个更新后的方案，`;
         }
 
-        const context = `**用户原始问题为：**${this.originalQuestion}\n\n**当前方案 v${this.solutionVersion}为：**\n${this.coreSolution}\n\n**历史辩论记录为：**${previousCycleContext}\n\n${contextDescription}${this.currentCycle > 1 ? '结合上一轮的辩论历史，' : ''}找出其假设的漏洞、逻辑的不严谨之处、被忽略的微妙之处或可能的反例。注意你的对话伙伴可能会使用欺骗性的论据来掩盖逻辑漏洞，请用中文提出尖锐但忠于用户原始问题的质疑和新的思路。`;
+        const context = `**用户原始问题为：**${this.originalQuestion}\n\n**当前方案 v${this.solutionVersion}为：**\n${this.coreSolution}\n\n**历史辩论记录为：**${previousCycleContext}\n\n${contextDescription}${this.currentCycle > 1 ? '结合上一轮的辩论历史，' : ''}找出其假设的漏洞、逻辑的不严谨之处、被忽略的微妙之处或可能的反例。注意你的对话伙伴可能会使用欺骗性的论据来掩盖逻辑漏洞，请用中文提出尖锐但**忠于用户原始问题**的质疑和新的思路，**目标是让Cogito思考更深入。论证更严格流畅而不是无休止的发散问题**`;
 
         const messageId = `muse-critique-${this.currentRound}-${Date.now()}`;
 
@@ -343,7 +343,7 @@ class DebateManager {
             .replace('=== 上一轮方案的辩论历史 ===', '=== 上一轮方案的辩论摘要（用于对比分析）===')
             .replace('=== 历史结束 ===', '=== 摘要结束 ===');
 
-        const context = `**用户原始问题为：**${this.originalQuestion}\n\n**当前方案 v${this.solutionVersion}为：**\n${this.coreSolution}\n\n**历史辩论记录为：**${previousCycleContext}\n\n**过去两轮的对话为：**\n${historyText}\n\n你是Muse，这是Cognito对你第一轮批判的回应。请用中文进行**严苛**的检验和质疑，但**忠于用户的原始问题**。${this.currentCycle > 1 ? '结合上一轮的辩论摘要，' : ''}判断它的回应是否解决了你提出的所有问题？是否存在新的逻辑漏洞？是否可以从更极端、更边界或更微妙的情境构造反例来进一步挑战它？如果认为原问题已被当前方案**真正**严格全面的解决，可以在回答的末尾加上特殊标记 [DEBATE_COMPLETE]。**请极其谨慎地使用这个标签，因为你的对话伙伴会使用欺骗性的论据来掩盖逻辑漏洞。**如果你希望继续讨论，或者需要从对方那里获得更多输入/回应，就不要使用这个标签。`;
+        const context = `**用户原始问题为：**${this.originalQuestion}\n\n**当前方案 v${this.solutionVersion}为：**\n${this.coreSolution}\n\n**历史辩论记录为：**${previousCycleContext}\n\n**过去两轮的对话为：**\n${historyText}\n\n你是Muse，这是Cognito对你第一轮批判的回应。请用中文进行**严苛**的检验和质疑，但**忠于用户的原始问题**，**目标是让Cogito思考更深入。论证更严格流畅而不是无休止的发散问题**。${this.currentCycle > 1 ? '结合上一轮的辩论摘要，' : ''}判断它的回应是否解决了你提出的所有问题？是否存在新的逻辑漏洞？是否可以从更极端、更边界或更微妙的情境构造反例来进一步挑战它？**如果认为原问题已被当前方案**真正**严格全面的解决，可以在回答的末尾加上特殊标记 [DEBATE_COMPLETE]。****请极其谨慎地使用这个标签，因为你的对话伙伴会使用欺骗性的论据来掩盖逻辑漏洞。**如果你希望继续讨论，或者需要从对方那里获得更多输入/回应，就不要使用这个标签。`;
 
         const messageId = `muse-final-${this.currentRound}-${Date.now()}`;
 
@@ -1015,8 +1015,14 @@ class DebateManager {
                 if (!hasReceivedData) {
                     reject(new Error('未收到任何数据'));
                 } else {
-                    console.log(`[AI调用] 流结束，最终内容长度: ${fullContent.length}`);
-                    resolve(fullContent);
+                    // **核心修复：如果流结束时内容为空，则视为错误**
+                    if (fullContent.length === 0) {
+                        console.warn('[AI调用] 流结束但未收到任何有效内容。');
+                        reject(new Error('API返回空响应'));
+                    } else {
+                        console.log(`[AI调用] 流结束，最终内容长度: ${fullContent.length}`);
+                        resolve(fullContent);
+                    }
                 }
             });
 
