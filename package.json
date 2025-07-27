@@ -4,7 +4,7 @@
   "description": "双AI辩论聊天应用 - 让两个AI进行结构化辩论来解决复杂问题",
   "main": "src/app.js",
   "scripts": {
-    "start": "node app.js",
+    "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "build": "echo 'No build step required'",
     "vercel-build": "node security-check.js && echo 'Build completed'",
