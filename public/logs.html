@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日志查看器 - Dual AI Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            min-height: 100vh;
+            color: #1e293b;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            color: #334155;
+            margin-bottom: 10px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: #f8fafc;
+            border-color: #9ca3af;
+        }
+
+        .btn.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .stat-card h3 {
+            font-size: 0.9rem;
+            color: #64748b;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .logs-container {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .log-entry {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-entry.api {
+            border-left: 3px solid #3b82f6;
+        }
+
+        .log-entry.error {
+            border-left: 3px solid #ef4444;
+            background: #fef2f2;
+        }
+
+        .log-entry.debate-flow {
+            border-left: 3px solid #10b981;
+        }
+
+        .log-timestamp {
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .log-content {
+            margin-top: 5px;
+            color: #1e293b;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #64748b;
+        }
+
+        .error {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .search-box {
+            width: 200px;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 日志查看器</h1>
+            <p>实时查看 Dual AI Chat 的运行日志</p>
+        </div>
+
+        <div class="controls">
+            <button class="btn active" onclick="loadStats()">统计</button>
+            <button class="btn" onclick="loadRecentLogs()">最近日志</button>
+            <button class="btn" onclick="loadErrors()">错误日志</button>
+            <input type="text" class="search-box" id="searchInput" placeholder="搜索日志...">
+            <button class="btn" onclick="searchLogs()">搜索</button>
+            <button class="btn" onclick="exportLogs('json')">导出JSON</button>
+            <button class="btn" onclick="exportLogs('csv')">导出CSV</button>
+            <button class="btn" onclick="cleanLogs()">清理</button>
+        </div>
+
+        <div id="statsContainer" class="stats-grid"></div>
+        <div id="logsContainer" class="logs-container">
+            <div class="loading">加载中...</div>
+        </div>
+    </div>
+
+    <script>
+        let currentView = 'stats';
+
+        async function apiCall(action, params = {}) {
+            try {
+                const url = new URL('/api/logs', window.location.origin);
+                url.searchParams.append('action', action);
+                
+                Object.entries(params).forEach(([key, value]) => {
+                    if (value) url.searchParams.append(key, value);
+                });
+
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error);
+                }
+                
+                return data.data;
+            } catch (error) {
+                console.error('API call failed:', error);
+                showError(error.message);
+                return null;
+            }
+        }
+
+        async function loadStats() {
+            setActiveButton('统计');
+            currentView = 'stats';
+            
+            const stats = await apiCall('stats');
+            if (!stats) return;
+
+            document.getElementById('statsContainer').innerHTML = `
+                <div class="stat-card">
+                    <h3>总调用次数</h3>
+                    <div class="value">${stats.totalCalls}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>成功率</h3>
+                    <div class="value">${stats.totalCalls > 0 ? ((stats.successCalls/stats.totalCalls)*100).toFixed(1) : 0}%</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Cognito调用</h3>
+                    <div class="value">${stats.cognitoCalls}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Muse调用</h3>
+                    <div class="value">${stats.museCalls}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>总输入字符</h3>
+                    <div class="value">${stats.totalInputChars.toLocaleString()}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>总输出字符</h3>
+                    <div class="value">${stats.totalOutputChars.toLocaleString()}</div>
+                </div>
+            `;
+
+            const overview = await apiCall('');
+            if (overview) {
+                displayLogs(overview.recentLogs);
+            }
+        }
+
+        async function loadRecentLogs() {
+            setActiveButton('最近日志');
+            currentView = 'recent';
+            
+            const logs = await apiCall('recent', { count: 20 });
+            if (logs) {
+                displayLogs(logs);
+            }
+        }
+
+        async function loadErrors() {
+            setActiveButton('错误日志');
+            currentView = 'errors';
+            
+            const logs = await apiCall('recent', { type: 'error', count: 20 });
+            if (logs) {
+                displayLogs(logs);
+            }
+        }
+
+        async function searchLogs() {
+            const keyword = document.getElementById('searchInput').value.trim();
+            if (!keyword) {
+                alert('请输入搜索关键词');
+                return;
+            }
+
+            setActiveButton('搜索');
+            currentView = 'search';
+            
+            const logs = await apiCall('search', { keyword });
+            if (logs) {
+                displayLogs(logs);
+            }
+        }
+
+        async function exportLogs(format) {
+            try {
+                const url = new URL('/api/logs', window.location.origin);
+                url.searchParams.append('action', 'export');
+                url.searchParams.append('format', format);
+
+                const link = document.createElement('a');
+                link.href = url.toString();
+                link.download = `logs-${new Date().toISOString().split('T')[0]}.${format}`;
+                link.click();
+            } catch (error) {
+                showError('导出失败: ' + error.message);
+            }
+        }
+
+        async function cleanLogs() {
+            if (confirm('确定要清理旧日志吗？')) {
+                await apiCall('clean');
+                alert('日志已清理');
+                if (currentView === 'stats') {
+                    loadStats();
+                }
+            }
+        }
+
+        function displayLogs(logs) {
+            const container = document.getElementById('logsContainer');
+            
+            if (!logs || logs.length === 0) {
+                container.innerHTML = '<div class="loading">暂无日志记录</div>';
+                return;
+            }
+
+            const logsHtml = logs.map(log => {
+                const timestamp = new Date(log.timestamp).toLocaleString();
+                let content = '';
+
+                if (log.type === 'api') {
+                    content = `${log.role}(${log.model}) | ${log.success ? '✅' : '❌'} | ${log.duration}ms | In:${log.inputLength} Out:${log.outputLength}`;
+                    if (log.error) content += ` | Error: ${log.error}`;
+                } else if (log.type === 'error') {
+                    content = `${log.context} | ${log.error}`;
+                } else if (log.type === 'debate-flow') {
+                    content = `${log.event} | ${JSON.stringify(log.data)}`;
+                }
+
+                return `
+                    <div class="log-entry ${log.type}">
+                        <div class="log-timestamp">${timestamp}</div>
+                        <div class="log-content">${content}</div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = logsHtml;
+        }
+
+        function setActiveButton(text) {
+            document.querySelectorAll('.btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.textContent === text) {
+                    btn.classList.add('active');
+                }
+            });
+        }
+
+        function showError(message) {
+            const container = document.getElementById('logsContainer');
+            container.innerHTML = `<div class="error">错误: ${message}</div>`;
+        }
+
+        // 页面加载时显示统计信息
+        loadStats();
+
+        // 每30秒自动刷新
+        setInterval(() => {
+            if (currentView === 'stats') loadStats();
+            else if (currentView === 'recent') loadRecentLogs();
+            else if (currentView === 'errors') loadErrors();
+        }, 30000);
+    </script>
+</body>
+</html>
